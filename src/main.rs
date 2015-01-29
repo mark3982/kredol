@@ -10,19 +10,19 @@ extern crate glium;
 #[plugin]
 extern crate glium_macros;
 
-use std::io::timer;
+use std::old_io::timer;
 use std::time::duration::Duration;
 
-use std::io;
+use std::old_io;
 use std::vec::Vec;
 use std::path::Path;
 use std::sync::Arc;
 
-use glium::{Display, Frame, VertexBuffer, Surface};
+use glium::{Display, Frame, VertexBuffer, Surface, DrawParameters};
 use glium::index_buffer::{IndexBuffer, TrianglesList};
 use glium::program::Program;
 
-use cgmath::{Point3, Vector3, Matrix4, Basis3, Matrix3, Quaternion, PerspectiveFov};
+use cgmath::{Point3, Vector3, Matrix4, Basis3, Matrix3, Quaternion, PerspectiveFov, Deg, Ortho};
 use cgmath::ToMatrix4;
 
 /// Represents an attachment of one object to another.
@@ -72,13 +72,32 @@ struct DrawableObject {
 impl DrawableObject {
     pub fn draw(&self, frame: &mut Frame) {
         use glium::Surface;
-        frame.draw(&self.vbuf, &self.tlst, &*self.programs, &self.uniforms, &std::default::Default::default()).unwrap();
+        let cfg = DrawParameters {
+            depth_function:     glium::DepthFunction::IfLessOrEqual,
+            depth_range:        (0.0, 1.0),
+            blending_function:  Option::None,
+            line_width:         Option::Some(1.0),
+            backface_culling:   glium::BackfaceCullingMode::CullClockWise,
+            polygon_mode:       glium::PolygonMode::Line,
+            multisampling:      false,
+            dithering:          false,
+            viewport:           Option::None,
+            scissor:            Option::None,
+        };
+        
+        let cfg = DrawParameters {
+            //depth_function:     glium::DepthFunction::IfLessOrEqual,
+            polygon_mode:       glium::PolygonMode::Line,
+            .. std::default::Default::default()
+        };
+
+        frame.draw(&self.vbuf, &self.tlst, &*self.programs, &self.uniforms, &cfg).unwrap();
     }
 
     /// Read file in `obj` format and return a new `Mesh` object.
     pub fn new_fromobj(display: &Display, source: &str, programs: &Arc<Program>) -> Vec<DrawableObject> {
         let psource = Path::new(source);
-        let mut file = io::File::open_mode(&psource, io::Open, io::Read).unwrap();
+        let mut file = old_io::File::open_mode(&psource, old_io::Open, old_io::Read).unwrap();
         let data = file.read_to_string().unwrap();
         let slice = data.as_slice();
         let mut objects: Vec<DrawableObject> = Vec::new();
@@ -111,8 +130,9 @@ impl DrawableObject {
                     parts.next().unwrap().parse::<f64>().unwrap(),
                     parts.next().unwrap().parse::<f64>().unwrap(),
                 ];
+                let scaler = 0.8;
                 vbuf.push(Vertex {
-                    position:    [v[0] as f32, v[1] as f32, v[2] as f32],
+                    position:    [v[0] as f32 * scaler, v[1] as f32 * scaler, v[2] as f32 * scaler],
                     color:       [1.0, 1.0, 1.0],
                 });
                 continue;
@@ -126,22 +146,24 @@ impl DrawableObject {
                 if d.is_some() {
                     let d = d.unwrap().parse::<u16>().unwrap() - 1;
                     // quad (which we turn into two triangles)
-                    tlst.push(a);
+                    tlst.push(c);
                     tlst.push(b);
+                    tlst.push(a);
+                    tlst.push(d);
                     tlst.push(c);
                     tlst.push(a);
-                    tlst.push(c);
-                    tlst.push(d);
                 } else {
                     // triangle
-                    tlst.push(a);
-                    tlst.push(b);
                     tlst.push(c);
+                    tlst.push(b);
+                    tlst.push(a);
                 }
                 continue;
             }
         }
 
+        println!("tlst.len():{}", tlst.len());
+        println!("vbuf.len():{}", vbuf.len());
         objects.push(DrawableObject {
             name:     name.unwrap(),
             vbuf:     VertexBuffer::new(display, vbuf),
@@ -162,9 +184,9 @@ fn main() {
     use cgmath::Angle;
 
     let display = glutin::WindowBuilder::new()
+        .with_depth_buffer(32)
         .with_dimensions(360, 360)
         .with_title(format!("Hello World"))
-        .with_depth_buffer(32)
         .build_glium().unwrap();
 
     let program = Arc::new(glium::Program::from_source(&display,
@@ -179,7 +201,7 @@ fn main() {
             varying vec3 v_color;
 
             void main() {
-                gl_Position = vec4(position, 1.0) * matrix;
+                gl_Position = matrix * vec4(position, 1.0);
                 v_color = color;
             }
         ",
@@ -199,7 +221,10 @@ fn main() {
 
     let mut objects = DrawableObject::new_fromobj(&display, "test.obj", &program);
 
-    let mut r3: Quaternion<f32> = Quaternion::from_sv(0.0, Vector3::new(0.0, 1.0, 0.0));
+    let mut rv = cgmath::Vector3::new(0.0, 1.0, 0.0);
+
+    let mut q3a = cgmath::Quaternion::from_sv(0.0, rv.clone());
+    let mut q3b = cgmath::Quaternion::from_sv(0.01, rv.clone());
 
     loop {
         for event in display.poll_events() {
@@ -208,19 +233,20 @@ fn main() {
 
         let mut target = display.draw();
 
-        target.clear_color(0.0, 0.0, 0.0, 0.0);
+        target.clear_all((0.0, 0.0, 0.0, 0.0), 0.0, 0);
         objects[0].draw(&mut target);
-
-        r3.s += -0.01;
-
-        let m4: Matrix4<f32> = Matrix4::identity();
-        //let m4 = m4 * r3.to_matrix4() * Matrix4::from_translation(&Vector3::new(0.0, 0.0, 1.0));
-        let m4 = m4 * Matrix4::from_translation(&Vector3::new(-20.0, 0.0, 0.0));
-        let per = (PerspectiveFov { fovy: 45.0, aspect: 1.0, near: 0.1, far: 10.0 }).to_matrix4();
-
-        objects[0].uniforms.matrix = m4.into_fixed();
         target.finish();
 
-        std::io::timer::sleep(Duration::milliseconds(17));
+        q3a = q3a.mul_q(&q3b);
+
+        let r = q3a.to_matrix4();
+
+        let m4: Matrix4<f32> = Matrix4::identity();
+        let per = cgmath::perspective(Deg { s: 45.0 }, 1.0, 0.1, 10.0);
+        let m4 = m4 * Matrix4::from_translation(&Vector3::new(0.0, 0.0, -5.0));
+
+        objects[0].uniforms.matrix = (per * m4 * r).into_fixed();
+
+        std::old_io::timer::sleep(Duration::milliseconds(17));
     }
 }
