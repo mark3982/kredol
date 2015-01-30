@@ -1,3 +1,12 @@
+//! 
+//! The drawable object can be drawn by the engine to the screen. It may or may not be visible but it
+//! does have the capabilities. For example it could be hidden. Also by drawable it means that most of
+//! the work, at least, has been done to move the data into the graphics card memory. This is, at the
+//! moment, the most optimized and flexible form of a object that can be drawn to the screen.
+//!
+//! _To manipulate the object you need to set a 4x4 transformation matrix, which at the moment, includes
+//! the the perspective transformation. (potentially outdated information)_
+
 use glium::{Display, Frame, VertexBuffer, Surface, DrawParameters};
 use glium::index_buffer::{IndexBuffer, TrianglesList};
 use glium::program::Program;
@@ -61,7 +70,7 @@ impl DrawableObject {
         if found.is_none() {
             Option::None
         } else {
-            let found = found.unwrap();
+            let found = found.unwrap().lock().unwrap();
             let mut vindex: Vec<u16> = Vec::new();
             let mut vertices: Vec<Vertex> = Vec::new();
 

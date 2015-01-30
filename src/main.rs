@@ -28,8 +28,8 @@ use cgmath::ToMatrix4;
 use simplescene::SimpleSceneFile;
 use drawableobject::DrawableObject;
 
-mod simplescene;
-mod drawableobject;
+pub mod simplescene;
+pub mod drawableobject;
 
 /// Represents an attachment of one object to another.
 struct SkeletonObjectAttachment {
@@ -110,9 +110,10 @@ fn main() {
         None
     ).unwrap());
 
-    SimpleSceneFile::from_file("data.txt");
+    //let mut objects = DrawableObject::from_obj(&display, "test.obj", program.clone());
 
-    let mut objects = DrawableObject::from_obj(&display, "test.obj", program.clone());
+    let scene = SimpleSceneFile::from_file("data.txt");
+    let mut dobject = DrawableObject::from_simplescene(&display, &scene, "Grape", program.clone()).unwrap();
 
     let mut rv = cgmath::Vector3::new(0.0, 1.0, 0.0);
 
@@ -131,7 +132,7 @@ fn main() {
         let mut target = display.draw();
 
         target.clear_all((0.0, 0.0, 0.0, 0.0), 0.0, 0);
-        objects[0].draw(&mut target);
+        dobject.draw(&mut target);
         target.finish();
 
         // Will rotate q3a by q3.
@@ -143,7 +144,7 @@ fn main() {
         let per = cgmath::perspective(Deg { s: 45.0 }, 1.0, 0.1, 10.0);
         let m4 = m4 * Matrix4::from_translation(&Vector3::new(0.0, 0.0, -5.0));
 
-        objects[0].set_uniform_matrix((per * m4 * r).into_fixed());
+        dobject.set_uniform_matrix((per * m4 * r).into_fixed());
 
         std::old_io::timer::sleep(Duration::milliseconds(17));
     }
