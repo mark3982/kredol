@@ -25,6 +25,10 @@ use glium::program::Program;
 use cgmath::{Point3, Vector3, Matrix4, Basis3, Matrix3, Quaternion, PerspectiveFov, Deg, Ortho};
 use cgmath::ToMatrix4;
 
+use simplescene::SimpleSceneFile;
+
+mod simplescene;
+
 /// Represents an attachment of one object to another.
 struct SkeletonObjectAttachment {
     sobject:        SkeletonObject,
@@ -132,7 +136,7 @@ impl DrawableObject {
                 ];
                 let scaler = 0.8;
                 vbuf.push(Vertex {
-                    position:    [v[0] as f32 * scaler, v[1] as f32 * scaler, v[2] as f32 * scaler],
+                    position:    [v[0] as f32 * scaler, v[2] as f32 * scaler, v[1] as f32 * scaler],
                     color:       [1.0, 1.0, 1.0],
                 });
                 continue;
@@ -182,6 +186,7 @@ fn main() {
     use cgmath::FixedArray;
     use cgmath::BaseFloat;
     use cgmath::Angle;
+    use cgmath::ToRad;
 
     let display = glutin::WindowBuilder::new()
         .with_depth_buffer(32)
@@ -219,12 +224,18 @@ fn main() {
         None
     ).unwrap());
 
+    SimpleSceneFile::from_file("data.txt");
+
     let mut objects = DrawableObject::new_fromobj(&display, "test.obj", &program);
 
     let mut rv = cgmath::Vector3::new(0.0, 1.0, 0.0);
 
-    let mut q3a = cgmath::Quaternion::from_sv(0.0, rv.clone());
-    let mut q3b = cgmath::Quaternion::from_sv(0.01, rv.clone());
+    let mut q3a: Quaternion<f32> = cgmath::Rotation3::<f32>::from_axis_angle(&cgmath::Vector3::new(0.0, 1.0, 0.0), (cgmath::Deg { s: 22.0 }).to_rad());
+    let mut q3b: Quaternion<f32> = cgmath::Rotation3::<f32>::from_axis_angle(&cgmath::Vector3::new(1.0, 0.0, 0.0), (cgmath::Deg { s: 22.0 }).to_rad());
+    q3a = q3a.mul_q(&q3b);
+
+    let mut q3b: Quaternion<f32> = cgmath::Rotation3::<f32>::from_axis_angle(&cgmath::Vector3::new(0.0, 0.0, 1.0), (cgmath::Deg { s: 22.0 }).to_rad());
+    q3a = q3a.mul_q(&q3b);
 
     loop {
         for event in display.poll_events() {
@@ -237,7 +248,8 @@ fn main() {
         objects[0].draw(&mut target);
         target.finish();
 
-        q3a = q3a.mul_q(&q3b);
+        // Will rotate q3a by q3.
+        //q3a = q3a.mul_q(&q3b).normalize();
 
         let r = q3a.to_matrix4();
 
