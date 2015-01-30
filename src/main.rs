@@ -26,8 +26,10 @@ use cgmath::{Point3, Vector3, Matrix4, Basis3, Matrix3, Quaternion, PerspectiveF
 use cgmath::ToMatrix4;
 
 use simplescene::SimpleSceneFile;
+use drawableobject::DrawableObject;
 
 mod simplescene;
+mod drawableobject;
 
 /// Represents an attachment of one object to another.
 struct SkeletonObjectAttachment {
@@ -38,13 +40,13 @@ struct SkeletonObjectAttachment {
 
 #[vertex_format]
 #[derive(Copy)]
-struct Vertex {
+pub struct Vertex {
     position:   [f32; 3],
     color:      [f32; 3],
 }
 
 #[uniforms]
-struct Uniforms {
+pub struct Uniform {
     matrix:     [[f32; 4]; 4],
 }
 
@@ -62,122 +64,6 @@ struct SkeletonObject {
     attachment:     Vec<SkeletonObjectAttachment>,
     /// opengl drawable data
     drawable:       DrawableObject,
-}
-
-/// An object used directly by the engine to render an object.
-struct DrawableObject {
-    name:           String,
-    vbuf:           VertexBuffer<Vertex>,
-    tlst:           IndexBuffer,
-    uniforms:       Uniforms,
-    programs:       Arc<Program>,
-}
-
-impl DrawableObject {
-    pub fn draw(&self, frame: &mut Frame) {
-        use glium::Surface;
-        let cfg = DrawParameters {
-            depth_function:     glium::DepthFunction::IfLessOrEqual,
-            depth_range:        (0.0, 1.0),
-            blending_function:  Option::None,
-            line_width:         Option::Some(1.0),
-            backface_culling:   glium::BackfaceCullingMode::CullClockWise,
-            polygon_mode:       glium::PolygonMode::Line,
-            multisampling:      false,
-            dithering:          false,
-            viewport:           Option::None,
-            scissor:            Option::None,
-        };
-        
-        let cfg = DrawParameters {
-            //depth_function:     glium::DepthFunction::IfLessOrEqual,
-            polygon_mode:       glium::PolygonMode::Line,
-            .. std::default::Default::default()
-        };
-
-        frame.draw(&self.vbuf, &self.tlst, &*self.programs, &self.uniforms, &cfg).unwrap();
-    }
-
-    /// Read file in `obj` format and return a new `Mesh` object.
-    pub fn new_fromobj(display: &Display, source: &str, programs: &Arc<Program>) -> Vec<DrawableObject> {
-        let psource = Path::new(source);
-        let mut file = old_io::File::open_mode(&psource, old_io::Open, old_io::Read).unwrap();
-        let data = file.read_to_string().unwrap();
-        let slice = data.as_slice();
-        let mut objects: Vec<DrawableObject> = Vec::new();
-        let mut lines = data.lines();
-        let mut name: Option<String> = Option::None;
-        let mut tlst: Vec<u16> = Vec::new();
-        let mut vbuf: Vec<Vertex> = Vec::new();
-        for line in lines {
-            let mut parts = line.split_str(" ");
-            let first = parts.next().unwrap();
-            if first.eq("o") {
-                if name.is_some() {
-                    objects.push(DrawableObject {
-                        name:     name.unwrap(),
-                        vbuf:     VertexBuffer::new(display, vbuf),
-                        tlst:     IndexBuffer::new(display, TrianglesList(tlst)),
-                        uniforms: Uniforms { matrix: [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]] },
-                        programs: programs.clone(),
-                    });
-                    tlst = Vec::new();
-                    vbuf = Vec::new();
-                }
-                name = Option::Some(String::from_str(parts.next().unwrap()));
-                continue;
-            }
-
-            if first.eq("v") {
-                let v = [
-                    parts.next().unwrap().parse::<f64>().unwrap(),
-                    parts.next().unwrap().parse::<f64>().unwrap(),
-                    parts.next().unwrap().parse::<f64>().unwrap(),
-                ];
-                let scaler = 0.8;
-                vbuf.push(Vertex {
-                    position:    [v[0] as f32 * scaler, v[2] as f32 * scaler, v[1] as f32 * scaler],
-                    color:       [1.0, 1.0, 1.0],
-                });
-                continue;
-            }
-
-            if first.eq("f") {
-                let a = parts.next().unwrap().parse::<u16>().unwrap() - 1;
-                let b = parts.next().unwrap().parse::<u16>().unwrap() - 1;
-                let c = parts.next().unwrap().parse::<u16>().unwrap() - 1;
-                let d = parts.next();
-                if d.is_some() {
-                    let d = d.unwrap().parse::<u16>().unwrap() - 1;
-                    // quad (which we turn into two triangles)
-                    tlst.push(c);
-                    tlst.push(b);
-                    tlst.push(a);
-                    tlst.push(d);
-                    tlst.push(c);
-                    tlst.push(a);
-                } else {
-                    // triangle
-                    tlst.push(c);
-                    tlst.push(b);
-                    tlst.push(a);
-                }
-                continue;
-            }
-        }
-
-        println!("tlst.len():{}", tlst.len());
-        println!("vbuf.len():{}", vbuf.len());
-        objects.push(DrawableObject {
-            name:     name.unwrap(),
-            vbuf:     VertexBuffer::new(display, vbuf),
-            tlst:     IndexBuffer::new(display, TrianglesList(tlst)),
-            uniforms: Uniforms { matrix: [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]] },
-            programs: programs.clone(),
-        });
-
-        objects
-    }
 }
 
 fn main() {
@@ -226,7 +112,7 @@ fn main() {
 
     SimpleSceneFile::from_file("data.txt");
 
-    let mut objects = DrawableObject::new_fromobj(&display, "test.obj", &program);
+    let mut objects = DrawableObject::from_obj(&display, "test.obj", program.clone());
 
     let mut rv = cgmath::Vector3::new(0.0, 1.0, 0.0);
 
@@ -257,7 +143,7 @@ fn main() {
         let per = cgmath::perspective(Deg { s: 45.0 }, 1.0, 0.1, 10.0);
         let m4 = m4 * Matrix4::from_translation(&Vector3::new(0.0, 0.0, -5.0));
 
-        objects[0].uniforms.matrix = (per * m4 * r).into_fixed();
+        objects[0].set_uniform_matrix((per * m4 * r).into_fixed());
 
         std::old_io::timer::sleep(Duration::milliseconds(17));
     }

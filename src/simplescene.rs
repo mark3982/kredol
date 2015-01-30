@@ -1,20 +1,20 @@
 use cgmath;
 
 pub struct SimpleSceneObject {
-    vertices:       Vec<cgmath::Vector3<f32>>,
-    scale:          cgmath::Vector3<f32>,
-    triangles:      Vec<[u16;3]>,
-    quads:          Vec<[u16;4]>,
-    name:           String,
-    typ:            String,
-    groups:         Vec<String>,
-    location:       cgmath::Vector3<f32>,
-    rotation:       cgmath::Quaternion<f32>,
+    pub vertices:       Vec<cgmath::Vector3<f32>>,
+    pub scale:          cgmath::Vector3<f32>,
+    pub triangles:      Vec<[u16;3]>,
+    pub quads:          Vec<[u16;4]>,
+    pub name:           String,
+    pub typ:            String,
+    pub groups:         Vec<String>,
+    pub location:       cgmath::Vector3<f32>,
+    pub rotation:       cgmath::Quaternion<f32>,
 }
 
 pub struct SimpleSceneFile {
-    path:           Path,
-    objects:        Vec<SimpleSceneObject>,
+    pub path:           Path,
+    pub objects:        Vec<SimpleSceneObject>,
 }
 
 impl SimpleSceneFile {
